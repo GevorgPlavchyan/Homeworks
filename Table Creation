@@ -1,0 +1,30 @@
+CREATE TABLE books (
+	book_id  INTEGER PRIMARY KEY,
+	title    TEXT,
+	author   CHARACTER(100),
+	genre    CHARACTER(100),
+	price    INTEGER,
+	quantity INTEGER
+);
+
+CREATE TABLE customers (
+	customer_id INTEGER PRIMARY KEY,
+	name        TEXT,
+	email       CHARACTER(100),
+	phone      INTEGER
+);
+
+CREATE TABLE sales (
+	sales_id      INTEGER PRIMARY KEY,
+	book_id       INTEGER,
+	customer_id   INTEGER,
+	data_of_sale  TEXT,
+	sold_quantity INTEGER,
+	total_price   INTEGER
+	CONSTRAINT fk_book
+		FOREIGN KEY(book_id)
+			REFERENCES books(book_id)
+	CONSTRAINT fk_customer
+		FOREIGN KEY(customer_id)
+			REFERENCES customers(customer_id)
+);

@@ -1,0 +1,11 @@
+INSERT INTO public.books(
+	title, author, genre, price, quantity)
+	VALUES ('The Hobbit', 'John Ronald Reuel Tolkien', 'Novel, Fantasy Fiction, High fantasy, Epic', '100', '10');
+	
+INSERT INTO public.customers(
+	name, email, phone)
+	VALUES ('Gurgen Minasyan', 'gurgen.minasyan@gmail.com', '077889966');
+	
+INSERT INTO public.customers(
+	book_id, customer_id, data_of_sale, sold_quantity, total_price)
+	VALUES ('2', '4', '15-05-23', '2', '150');
