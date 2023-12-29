@@ -1,0 +1,5 @@
+SELECT DISTINCT b.title, c.name, s.date_of_sale
+FROM sales AS s
+INNER JOIN books      AS b ON (s.book_id = b.book_id and s.custommer_id = s.custommer_id)
+INNER JOIN custommers AS c ON (s.book_id = b.book_id and s.custommer_id = s.custommer_id)
+-- ORDER BY s.sales_id

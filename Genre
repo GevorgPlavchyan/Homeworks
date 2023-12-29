@@ -1,0 +1,4 @@
+SELECT b.genre, AVG(s.total_price) AS price
+FROM books AS b
+INNER JOIN sales AS s ON s.book_id = b.book_id
+GROUP BY b.genre
