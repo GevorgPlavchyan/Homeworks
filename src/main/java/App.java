@@ -2,7 +2,7 @@ import java.sql.*;
 import java.time.LocalDate;
 
 public class App {
-    private final String url = "jdbc:postgresql://localhost:5432/BookstoreDB";
+    private final String url = "jdbc:postgresql://localhost:5432/BookStore";
     private final String userName = "postgres";
     private final String password = "postgres";
 
