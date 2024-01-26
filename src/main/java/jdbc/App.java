@@ -1,24 +1,26 @@
+package jdbc;
+
 import java.sql.*;
 import java.time.LocalDate;
 
-public class App {
-    private final String url = "jdbc:postgresql://localhost:5432/BookStore";
+public class App implements Validation {
+    private final String url = "jdbc:postgresql://localhost:5432/bookstoredb";
     private final String userName = "postgres";
-    private final String password = "postgres";
+    private final String password = "885522";
 
     public App() {
-        try (Connection connection = DriverManager.getConnection(url, userName, password);
+        try (Connection connection = connect();
              Statement statement = connection.createStatement()) {
 
             statement.execute("""
                                 CREATE OR REPLACE FUNCTION update_book_date(
                                     book_id           INTEGER,
-                                    title             TEXT,
+                                    title             VARCHAR,
                                     author            VARCHAR,
                                     genre             VARCHAR,
-                                    price             INTEGER,
+                                    price             REAL,
                                     quantity_in_stock INTEGER)
-                                    RETURNS TRIGGER AS $$
+                                    RETURNS VOID AS $$
                                         BEGIN
                                             UPDATE Books
                                                 SET Title           = title,
@@ -29,12 +31,6 @@ public class App {
                                             WHERE BookID        = book_id;
                                         END;
                                     $$ LANGUAGE plpgsql;
-                                    
-                                    CREATE TRIGGER update_book_id_from_sales
-                                    AFTER INSERT ON Sales
-                                    FOR EACH ROW
-                                    EXECUTE FUNCTION update_book_date(book_id, title, author, genre, price, quantity_in_stock);
-                                    
                              """);
 
             statement.execute("""
@@ -43,7 +39,7 @@ public class App {
                                     name        VARCHAR,
                                     email       VARCHAR,
                                     phone       VARCHAR)
-                                    RETURNS TRIGGER AS $$
+                                    RETURNS VOID AS $$
                                         BEGIN
                                             UPDATE Customers
                                                 SET Name = name,
@@ -52,28 +48,17 @@ public class App {
                                             WHERE CustomerID = customer_id;
                                         END;
                                     $$ LANGUAGE plpgsql;
-                                    
-                                    CREATE TRIGGER update_customer_id_from_sales
-                                    AFTER INSERT ON Sales
-                                    FOR EACH ROW
-                                    EXECUTE FUNCTION update_customer_date(customer_id, name, email, phone);
                              """);
 
             statement.execute("""
                                 CREATE OR REPLACE FUNCTION insert_sales_date(
-                                    sales_id    INTEGER,
-                                    book_id     INTEGER,
                                     customer_id INTEGER,
                                     date        DATE,
                                     quantity    INTEGER)
-                                    RETURNS TRIGGER AS $$
+                                    RETURNS VOID AS $$
                                         BEGIN
-                                            UPDATE Sales
-                                                SET BookID       = book_id,
-                                                    CustomerID   = customer_id,
-                                                    DateOfSale   = date
-//                                                    QuantitySold = quantity
-                                            WHERE SalesID = sales_id;
+                                            INSERT INTO Seles (CustomerID, DateOfSale, QuantitySold)
+                                            VALUES  (customer_id, date, quantity);
                                         END;
                                     $$ LANGUAGE plpgsql;
                              """);
@@ -82,16 +67,16 @@ public class App {
         }
     }
 
-    private void updateBookData(int id, String title, String author, String genre, int price, int quantity) {
+    protected void updateBookData(int id, String title, String author, String genre, double price, int quantity) {
         try (Connection connection = DriverManager.getConnection(url, userName, password)) {
-            String s = String.format("Call update_book_date(%d, %s, %s, %s, %d, %d)", id, title, author, genre, price, quantity);
+            String s = String.format("Call update_book_date(%d, %s, %s, %s, %f, %d)", id, title, author, genre, price, quantity);
             connection.prepareCall(s);
         } catch (SQLException r) {
             System.out.println("Invalid db" + r);
         }
     }
 
-    private void booksByGenreOrAuthor() {
+    protected void booksByGenreOrAuthor() {
         try (Connection connection = DriverManager.getConnection(url, userName, password);
              Statement statement = connection.createStatement()) {
             statement.execute("""
@@ -104,7 +89,7 @@ public class App {
         }
     }
 
-    private void updateCustomerData(int id, String name, String email, String phone) {
+    protected void updateCustomerData(int id, String name, String email, String phone) {
         try (Connection connection = DriverManager.getConnection(url, userName, password)) {
             String s = String.format("Call update_customer_date(%d, %s, %s, %s)", id, name, email, phone);
             connection.prepareCall(s);
@@ -113,7 +98,7 @@ public class App {
         }
     }
 
-    private void customersPurchaseHistory() {
+    protected void customersPurchaseHistory() {
         try (Connection connection = DriverManager.getConnection(url, userName, password);
              Statement statement = connection.createStatement()) {
             statement.execute("""
@@ -128,32 +113,43 @@ public class App {
         }
     }
 
-    private void newSale(String bookName, String authorName, String customerName, String email, String phone) {
+    protected void newSale(String bookName, String authorName, String customerName, String email, String phone) {
         try (Connection connection = DriverManager.getConnection(url, userName, password)) {
-            int cs_id = getMaxID("CustomerID") + 1;
-            int sl_id = getMaxID("SalesID") + 1;
-            int bk_id = getBookID(bookName, authorName);
-
+            int cs_id = getID(String.format("""
+                                                        SELECT customer_id
+                                                            FROM Customer AS c
+                                                            WHERE c.name = %s
+                                                    """, customerName));
+            if (cs_id == -1) {
+                System.out.println("Invalid customer!");
+                return;
+            }
+            int bk_id = getID(String.format("""
+                                                    SELECT book_id
+                                                        FROM Books AS b
+                                                        WHERE b.Title = %s ADN b.Author = %s
+                                                """, bookName, authorName));
+            if (bk_id == -1) {
+                System.out.println("Invalid book!");
+                return;
+            }
             updateCustomerData(cs_id, customerName, email, phone);
 
             String s = "Call update_books_quantity_in_stock()";
             connection.prepareCall(s);
 
-            s = String.format("Call insert_sales_date(%d, %d, %d, %t)", sl_id, bk_id, cs_id, LocalDate.now());
+            s = String.format("Call insert_sales_date(%d, %d, %t)", bk_id, cs_id, LocalDate.now());
+            connection.prepareCall(s);
         } catch (SQLException r) {
             System.out.println("Invalid db" + r);
         }
     }
 
-    private int getMaxID(String id) {
-        int result = 0;
+    private int getID(String query) {
+        int result = -1;
         try (Connection connection = DriverManager.getConnection(url, userName, password);
              Statement statement = connection.createStatement()) {
-            String s = """
-                          SELECT MAX(id)
-                            FROM Customers
-                       """;
-            ResultSet resultSet = statement.executeQuery(s);
+            ResultSet resultSet = statement.executeQuery(query);
             if (!resultSet.wasNull())
                 result = resultSet.getInt(1);
         } catch (SQLException r) {
@@ -162,25 +158,7 @@ public class App {
         return result;
     }
 
-    private int getBookID(String bookName, String authorName) {
-        int result = 0;
-        try (Connection connection = DriverManager.getConnection(url, userName, password);
-             Statement statement = connection.createStatement()) {
-            String s = String.format("""
-                                        SELECT id
-                                            FROM Books AS b
-                                            WHERE b.Title = %s ADN b.Author = %s
-                                    """, bookName, authorName);
-            ResultSet resultSet = statement.executeQuery(s);
-            if (!resultSet.wasNull())
-                result = resultSet.getInt(1);
-        } catch (SQLException r) {
-            System.out.println("Invalid db" + r);
-        }
-        return result;
-    }
-
-    private int salesTotalRevenueByGenre(String genre) {
+    protected int salesTotalRevenueByGenre(String genre) {
         int result = 0;
         try (Connection connection = DriverManager.getConnection(url, userName, password);
              Statement statement = connection.createStatement()) {
@@ -198,8 +176,8 @@ public class App {
         return result;
     }
 
-    private void salesHistory() {
-        try (Connection connection = DriverManager.getConnection(url, userName, password)) {
+    protected void salesHistory() {
+        try (Connection connection = connect()) {
             String s = """
                           SELECT s.DateOfSale AS date, b.Title AS book_tilte, c.Name AS name
                             FROM Sales AS s
@@ -212,8 +190,8 @@ public class App {
         }
     }
 
-    private void salesRevenueForEchGenre() {
-        try (Connection connection = DriverManager.getConnection(url, userName, password)) {
+    protected void salesRevenueForEchGenre() {
+        try (Connection connection = connect()) {
             String s = """
                           SELECT b.Genre AS genre, SUM(s.TotalPrice) AS revenue
                             FROM Sales AS s
@@ -226,6 +204,13 @@ public class App {
         }
     }
 
-    public void corOfApp() {}
-
+    private Connection connect() {
+        Connection conn = null;
+        try {
+            conn = DriverManager.getConnection(url, userName, password);
+        } catch (SQLException r) {
+            System.out.println("Invalid db" + r);
+        }
+        return conn;
+    }
 }
